@@ -1,4 +1,0 @@
-/home/moisesdias/Downloads/CLion-2019.3.4/clion-2019.3.4/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /home/moisesdias/Downloads/SO/ping-pong-os---projetos-20171129/p00
--- Configuring done
--- Generating done
--- Build files have been written to: /home/moisesdias/Downloads/SO/ping-pong-os---projetos-20171129/p00/cmake-build-debug

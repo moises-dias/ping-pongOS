@@ -1,3 +1,0 @@
-/home/moisesdias/Downloads/SO/ping-pong-os---projetos-20171129/p00/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/home/moisesdias/Downloads/SO/ping-pong-os---projetos-20171129/p00/cmake-build-debug/CMakeFiles/p00.dir
-/home/moisesdias/Downloads/SO/ping-pong-os---projetos-20171129/p00/cmake-build-debug/CMakeFiles/edit_cache.dir
