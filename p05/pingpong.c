@@ -5,22 +5,29 @@
 #include <signal.h>
 #include <sys/time.h>
 #define STACKSIZE 32768
-
+#define TICKS 20
+#define TIME_INTERVAL 1000
 
 int tid = 1;
 
 task_t mainTask;
-task_t* actualTask;
-task_t* previousTask;
-task_t* firstTask;
 task_t dispatcher;
-queue_t* taskQueue;
+
+task_t* actualTask;
+task_t* currentTask;
 task_t* next;
+
+queue_t* taskQueue;
+
 struct sigaction action ;
+
 struct itimerval timer;
 
-task_t* scheduler () {
-//
+task_t* FCFS() {
+    return queue_remove(&taskQueue, taskQueue);
+}
+
+//task_t* agingPrio() {
 //    task_t* aux = taskQueue;
 //    do{
 //        if(previousTask == &mainTask) {
@@ -45,23 +52,18 @@ task_t* scheduler () {
 //    lowPrio->dinamicPrio = lowPrio->staticPrio;
 //    return lowPrio;
 //
+//}
 
-    if (previousTask == taskQueue) {
-        taskQueue = taskQueue->next;
-        return taskQueue;
-    }
-    else {
-        return taskQueue;
-    }
-
+task_t* scheduler () {
+    return FCFS();
 }
 
 void tratador() {
-    if(actualTask->sysTask) {
+    if(currentTask->sysTask) {
         return;
     }
-    actualTask->ticks = actualTask->ticks - 1;
-    if(actualTask->ticks <= 0) {
+    currentTask->ticks--;
+    if(currentTask->ticks <= 0) {
         task_yield();
     }
 }
@@ -79,13 +81,7 @@ void dispatcher_body () {
     task_switch(&mainTask);
 }
 
-void pingpong_init () {
-    setvbuf (stdout, 0, _IONBF, 0) ;
-    actualTask = &mainTask;
-    task_create(&dispatcher, dispatcher_body, NULL);
-    queue_remove(&taskQueue, &dispatcher);
-    dispatcher.sysTask = true;
-
+void timerInit() {
     action.sa_handler = tratador ;
     sigemptyset (&action.sa_mask) ;
     action.sa_flags = 0 ;
@@ -93,20 +89,28 @@ void pingpong_init () {
         perror ("Erro em sigaction: ") ;
         exit (1) ;
     }
-    timer.it_value.tv_usec = 1000 ;      // primeiro disparo, em micro-segundos
-    timer.it_value.tv_sec  = 0 ;      // primeiro disparo, em segundos
-    timer.it_interval.tv_usec = 1000 ;   // disparos subsequentes, em micro-segundos
-    timer.it_interval.tv_sec  = 0 ;   // disparos subsequentes, em segundos
+    timer.it_value.tv_usec = TIME_INTERVAL ;
+    timer.it_value.tv_sec  = 0 ;
+    timer.it_interval.tv_usec = TIME_INTERVAL ;
+    timer.it_interval.tv_sec  = 0 ;
     if (setitimer (ITIMER_REAL, &timer, 0) < 0) {
         perror ("Erro em setitimer: ") ;
         exit (1) ;
     }
 }
 
-int task_create (task_t *task,			// descritor da nova tarefa
-                 void (*start_func)(void *),	// funcao corpo da tarefa
-                 void *arg) {            // argumentos para a tarefa
+void pingpong_init () {
+    setvbuf (stdout, 0, _IONBF, 0) ;
+    currentTask = &mainTask;
+    mainTask.sysTask = true;
+    task_create(&dispatcher, dispatcher_body, NULL);
+    queue_remove(&taskQueue, &dispatcher);
+    dispatcher.sysTask = true;
 
+    timerInit();
+}
+
+int task_create (task_t *task, void (*start_func)(void *), void *arg) {
     getcontext (&(task->taskContext));
     char *stack ;
     stack = malloc (STACKSIZE) ;
@@ -124,44 +128,40 @@ int task_create (task_t *task,			// descritor da nova tarefa
     task->dinamicPrio = 0;
     task->staticPrio = 0;
     task->sysTask = false;
-    task->ticks = 20;
+    task->ticks = TICKS;
+
     tid = tid + 1;
 
-
     queue_append(&taskQueue, task);
-    if(queue_size(taskQueue) == 1) {
-        firstTask = task;
-    }
 
     return tid;
 }
 
 int task_switch (task_t *task) {
-    actualTask->ticks = 20;
-    ucontext_t* auxContext = &actualTask->taskContext;
-    previousTask = actualTask;
-    actualTask = task;
+    if(!currentTask->sysTask) {
+        currentTask->ticks = TICKS;
+    }
+    ucontext_t* auxContext = &currentTask->taskContext;
+    currentTask = task;
     swapcontext (auxContext, &task->taskContext);
     return 0;
 }
 
 void task_exit (int exitCode) {
-    if(firstTask == actualTask) {
-        firstTask = firstTask->next;
-    }
-    queue_remove(&taskQueue, actualTask);
     task_switch(&dispatcher);
 }
 
 int task_id () {
-    return actualTask->tid;
+    return currentTask->tid;
 }
 
 void task_yield () {
+    if(currentTask != &mainTask){
+        queue_append(&taskQueue, currentTask);
+    }
     task_switch(&dispatcher);
 }
 
-// define a prioridade estática de uma tarefa (ou a tarefa atual)
 void task_setprio (task_t *task, int prio) {
     if (prio < -20) {
         prio = -20;
@@ -172,7 +172,6 @@ void task_setprio (task_t *task, int prio) {
     task->staticPrio = prio;
 }
 
-// retorna a prioridade estática de uma tarefa (ou a tarefa atual)
 int task_getprio (task_t *task) {
     if(task){
         return task->staticPrio;
